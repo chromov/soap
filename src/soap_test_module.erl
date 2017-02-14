@@ -40,7 +40,7 @@
 -export([from_client/2]).
 -export([from_interface/5]).
 
--include("soap.hrl").
+-include("include/soap.hrl").
 
 -type option() :: 
     {hrl_name, string()} |    %% name of the .hrl file that must be included

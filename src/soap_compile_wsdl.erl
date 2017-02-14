@@ -28,7 +28,7 @@
 -export([get_services/2]).
 -export([get_namespaces/2]).
 
--include("soap.hrl").
+-include("include/soap.hrl").
 
 -type option() :: {http_client, atom()} | 
                   {http_options, any()} |

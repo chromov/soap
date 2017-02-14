@@ -23,7 +23,7 @@
 %%%
 -module(soap_fault).
 
--include("soap.hrl").
+-include("include/soap.hrl").
 -include("soap_fault.hrl").
 
 %% public interface

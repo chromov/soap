@@ -25,7 +25,7 @@
 %%%
 -module(soap_interface).
 
--include("soap.hrl").
+-include("include/soap.hrl").
 
 -export([model/1]).
 -export([handler/1]).

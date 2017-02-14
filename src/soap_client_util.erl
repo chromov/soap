@@ -27,7 +27,7 @@
 %%%
 -module(soap_client_util).
 
--include("soap.hrl").
+-include("include/soap.hrl").
 
 -export([call/5]).
 -export([call/6]).

@@ -23,7 +23,7 @@
 -module(soap_parse_wsdl).
 
 -include("soap_wsdl_1_1.hrl").
--include("soap.hrl").
+-include("include/soap.hrl").
 
 -export([file/4]).
 -export([get_services/2]).

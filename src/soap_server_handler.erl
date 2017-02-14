@@ -29,7 +29,7 @@
 
 -module(soap_server_handler).
 
--include("soap.hrl").
+-include("include/soap.hrl").
 
 %%% functions called by the HTTP server
 -export([new_req/4]).

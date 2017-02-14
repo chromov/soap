@@ -27,7 +27,7 @@
 -module(soap_parse_wsdl_2_0).
 
 -include("soap_wsdl_2_0.hrl").
--include("soap.hrl").
+-include("include/soap.hrl").
 
 -export([file/4]).
 -export([get_services/2]).

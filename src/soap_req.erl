@@ -25,7 +25,7 @@
 %%% HTTP response.
 %%%
 -module(soap_req).
--include("soap.hrl").
+-include("include/soap.hrl").
 
 %% public interface
 -export([server_req/1]).
