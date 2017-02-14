@@ -32,6 +32,8 @@
 -export([call/5]).
 -export([call/6]).
 
+-export([compile_xml/4]).
+
 %%% ============================================================================
 %%% Types
 %%% ============================================================================
@@ -90,6 +92,50 @@ call(Body, Headers, Options, Soap_action,
             Error
     end.
 
+-spec compile_xml(Body::tuple(), Headers::[any()], Options::[option()], 
+                  interface()) -> any().
+compile_xml(Body, Headers, Options, #interface{model = Model} = Interface) ->
+    case encode_headers(Headers, Model) of
+        {ok, Encoded_headers} ->
+
+          Interface2 = process_options(Options, Interface), 
+          #interface{model = Model2, soap_ns = Namespace} = Interface2,
+          try
+              erlsom:write(Body, Model2)
+          of
+              {ok, Encoded_body} ->
+                  join_xml_list(["<s:Envelope xmlns:s=\"", Namespace, "\">",
+                      Encoded_headers,
+                      "<s:Body>",
+                      Encoded_body,
+                      "</s:Body></s:Envelope>"])
+          catch
+              Class:Error ->
+                  {error, {client, {encoding_body, Class, Error}}, <<>>}
+          end;
+        Error ->
+          Error
+    end.
+
+
+join_xml_list(List) ->
+  unicode:characters_to_binary(join_xml_list(List, "")).
+
+join_xml_list([], Acc) ->
+  Acc;
+
+join_xml_list([H|T] = List, Acc) ->
+  case io_lib:printable_list(List) of
+    true ->
+      string:concat(Acc, List);
+    _ ->
+      join_xml_list(T, join_xml_list(H, Acc))
+  end;
+
+join_xml_list(Bin, Acc) when is_binary(Bin) ->
+  join_xml_list(binary_to_list(Bin), Acc).
+
+
 %%% ============================================================================
 %%% Internal functions
 %%% ============================================================================
@@ -105,7 +151,8 @@ call_body(Body, Encoded_headers, Soap_action,
     of
         {ok, Encoded_body} ->
             Http_body = 
-                ["<s:Envelope xmlns:s=\"", Namespace, "\">",
+                ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+                    "<s:Envelope xmlns:s=\"", Namespace, "\">",
                     Encoded_headers,
                     "<s:Body>",
                     unicode:characters_to_binary(Encoded_body),
@@ -179,7 +226,7 @@ call_http(Http_body,
             %%  [Code, Response_headers, 
             %%   lists:sublist(binary_to_list(Response_body), 300)]),
             parse_message(Response_body, Model, Code, Response_headers, 
-                          Version, Ns, Handler);
+                          Version, Ns, Handler, join_xml_list(Http_body));
         {ok, Code, Response_headers, Response_body} ->
             {error, {server, Code, Response_headers}, Response_body};
         {error, Error} ->
@@ -218,11 +265,11 @@ encode_headers([Header|T], Model, Acc) when is_tuple(Header) ->
             {error, {client, {encoding_headers, {Error}}}}
     end.
 
-parse_message(Message, Model, Http_status, Http_headers, Version, Ns, Handler) ->
+parse_message(Message, Model, Http_status, Http_headers, Version, Ns, Handler, Request_xml) ->
     case lists:keyfind("Content-Type", 1, Http_headers) of 
         false ->
             parse_xml(Message, Model, Http_status, Http_headers, 
-                      Version, Ns, Handler, [], Message);
+                      Version, Ns, Handler, [], Message, Request_xml);
         {_, Content_type} ->
             case string:to_lower(lists:sublist(Content_type, 17)) of
                 "multipart/related" ->
@@ -230,7 +277,7 @@ parse_message(Message, Model, Http_status, Http_headers, Version, Ns, Handler) -
                                Version, Ns, Handler, Content_type);
                 _ ->
                     parse_xml(Message, Model, Http_status, Http_headers, 
-                              Version, Ns, Handler, [], Message)
+                              Version, Ns, Handler, [], Message, Request_xml)
             end
     end.
 
@@ -242,12 +289,12 @@ parse_mime(Message, Model, Http_status, Http_headers,
     case proplists:get_value("boundary", Parsed_parameters) of
         undefined ->
             parse_xml(Message, Model, Http_status, Http_headers, 
-                      Version, Ns, Handler, [], Message);
+                      Version, Ns, Handler, [], Message, []);
         Boundary ->
             case soap_mime:decode(Message, list_to_binary(Boundary)) of
                 [{Headers, Body} | Attachments] ->
                     parse_xml(Body, Model, Http_status, Headers, 
-                              Version, Ns, Handler, Attachments, Message);
+                              Version, Ns, Handler, Attachments, Message, []);
                 _Other ->
                     {error, {client, decoding_mime}}
             end
@@ -255,7 +302,7 @@ parse_mime(Message, Model, Http_status, Http_headers,
 
 
 parse_xml(Message, Model, Http_status, Http_headers, 
-          Version, Ns, Handler, Attachments, HTTP_body) ->
+          Version, Ns, Handler, Attachments, HTTP_body, Request_xml) ->
     try erlsom:parse_sax(Message, 
                          #p_state{model = Model, version = Version,
                                   soap_ns = Ns, state = start,
@@ -266,11 +313,11 @@ parse_xml(Message, Model, Http_status, Http_headers,
                       soap_body = Decoded_fault,
                       version = Version}, _} ->
             {fault, Http_status, Http_headers, Decoded_headers, 
-                    Decoded_fault, Attachments, HTTP_body};
+                    Decoded_fault, Attachments, HTTP_body, Request_xml};
         {ok, #p_state{soap_body = Decoded_body,
                       soap_headers = Decoded_headers}, _} ->
             {ok, Http_status, Http_headers, Decoded_headers, 
-                 Decoded_body, Attachments, HTTP_body}
+                 Decoded_body, Attachments, HTTP_body, Request_xml}
     catch
         %% For now: assume that this means invalid XML
         %% TODO: differentiate more (perhaps improve erlsom error codes)
